@@ -26,7 +26,7 @@ from datetime import datetime
 end = datetime.now()
 start = datetime(end.year - 1, end.month, end.day)
 
-future_pred = 2 # Number of days to forcast
+future_pred = 3 # Number of days to forcast
 # lag featuers
 lags = 1
 input_shape = [15]
@@ -233,6 +233,36 @@ def run_prediction():
     print(predictions)
     prediction_label = Label(frame, text = predictions)
     prediction_label.pack()
+    
+    # history_df = pd.DataFrame(btc_data)
+    history_df = download_dataset().copy()
+    history_df.index = pd.DatetimeIndex(history_df.index).astype(np.int64) // 10**9
+    history_df_filtered = history_df[history_df.index >= pd.Timestamp(150, unit='D').timestamp()]
+
+
+    # create stock_prices DataFrame
+    stock_prices = pd.DataFrame({'open': history_df_filtered['Open'], 
+                             'close': history_df_filtered['Close'], 
+                             'high': history_df_filtered['High'], 
+                             'low': history_df_filtered['Low'],
+                             'volume': 0})
+
+    # add date column to DataFrame
+    stock_prices['date'] = pd.to_datetime(history_df_filtered.index)
+
+    # set date as index
+    stock_prices.set_index('date', inplace=True)
+
+    # create candlestick chart using mplfinance
+    fig, ax = mpf.plot(stock_prices, type='candlestick', style='charles', volume=True, figratio=(16,9), mav=(5,10,20), title='Last 7 Days of Stock Prices', returnfig=True)
+
+    # create canvas for chart
+    canvas = FigureCanvasTkAgg(fig, master=frame)
+    canvas.draw()
+    canvas.get_tk_widget().pack()
+
+    
+    
     return predictions
 
 
@@ -262,6 +292,14 @@ def run_model(model, X_train_scaled, X_valid_scaled, y_train, y_valid, X_fcast_s
 
     return prediction
 
+
+
+
+
+from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
+import mplfinance as mpf
+
+
 label = Label(frame, textvariable = var )
 label.pack()
 download_btn = Button(frame, text = "Download", command = download_dataset)
@@ -273,4 +311,15 @@ prepare_btn.pack()
 run_btn = Button(frame, text = "Run Prediction", command = run_prediction)
 run_btn.pack()
 
+root.configure(background='#000000')
+
+
+def on_closing():
+    # add any cleanup code here
+    root.destroy()
+    sys.exit()
+
+root.protocol("WM_DELETE_WINDOW", on_closing)
+
 root.mainloop()
+
