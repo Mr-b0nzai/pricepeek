@@ -46,31 +46,46 @@ dtype = {
     'Close': 'float32',
 }
 
-btc_data_live = pdr.get_data_yahoo('AAL', start='2014-09-21', end=end)
+btc_data_live = pdr.get_data_yahoo('BTC-USD', start='1986-01-01', end='2023-10-27')
 # btc_data = pd.read_csv('BTC-USD-MAX.csv', dtype=dtype, parse_dates=['Date'])
 btc_data = btc_data_live.copy()
 btc_data.reset_index(inplace=True)
 btc_data.set_index('Date', inplace=True)
+today = pd.to_datetime('today').strftime('%Y-%m-%d')
 
-future_pred = 3 # Number of days to forcast
-# lag featuers
-lags = 1
-input_shape = [17]
+# Create a new DataFrame with today's values
+today = pd.DataFrame({
+    'Open': [34156],
+    'High': [34238],
+    'Low': [33450],
+    'Close': [33774],
+    'Adj Close': [33774],
+    'Volume': [19427195376]
+}, index=[today])
+
+# Concatenate the new DataFrame with btc_data
+btc_data = pd.concat([btc_data, today])
+
+future_pred = 1 # Number of days to forcast
+# # lag featuers
+# lags = 1
+input_shape = [16]
 random_state = 0
+
 
 def create_feature_columns(dataset, y_value):
     # Create the shifted lag series of prior trading period close values
-    for i in range(0, lags):
-        dataset["Lag%s" % str(i+1)] = dataset[y_value].shift(i+1).pct_change()
+    # for i in range(0, lags):
+    #     dataset["Lag%s" % str(i+1)] = dataset[y_value].shift(i+1).pct_change()
         
-    dataset['Prediction'] = dataset[y_value].shift(-future_pred) # creating new column called 'prediction' that contains the close price of the next 3 days
+    dataset['Prediction'] = dataset[y_value].shift(-1) # creating new column called 'prediction' that contains the close price of the next 3 days
     dataset['Daily Return'] = dataset['Close'].pct_change() # creating new column called 'Daily Return' that contains the daily return of the stock
     dataset['volume_gap'] = dataset.Volume.pct_change()
     dataset['ho'] = dataset['High'] - dataset['Open'] 
     dataset['lo'] = dataset['Low'] - dataset['Open']
     dataset['oc'] = dataset.Open - dataset.Close
     dataset['hl'] = dataset.High - dataset.Low
-    dataset['Dates'] = dataset.index
+    dataset['Dates'] = pd.to_datetime(dataset.index) # convert to datetime column
     dataset['day_of_week'] = dataset['Dates'].dt.dayofweek
     dataset['day_of_month'] = dataset['Dates'].dt.day
     quotes_list = [
@@ -234,6 +249,30 @@ def run_model(model, X_train_scaled, X_valid_scaled, y_train, y_valid, X_fcast_s
 
 prediction_low = run_model(model, X_train_low_scaled, X_valid_low_scaled, y_train_low, y_valid_low, X_fcast_low_scaled, 'Low', dataset_low)
 prediction_high = run_model(model, X_train_high_scaled, X_valid_high_scaled, y_train_high, y_valid_high, X_fcast_high_scaled, 'High', dataset_high)
+prediction_close = run_model(model, X_train_close_scaled, X_valid_close_scaled, y_train_close, y_valid_close, X_fcast_close_scaled, 'Close', dataset_close)
+
+# concatenate the two dataframes into a single dataframe
+predictions = pd.concat([prediction_low, prediction_high, prediction_close], axis=1)
+print(predictions)
+
+
+import json
+
+# your code for prediction
+
+# convert prediction results to dictionary
+prediction_dict = {'closing prediction': prediction_close.to_dict(),
+                   'high prediction': prediction_high.to_dict(),
+                   'low prediction': prediction_low.to_dict()}
+
+# convert Timestamp objects to strings
+for key in prediction_dict:
+    for subkey in prediction_dict[key]:
+        if isinstance(subkey, pd.Timestamp):
+            prediction_dict[key][subkey.strftime('%Y-%m-%d')] = prediction_dict[key].pop(subkey)
+
+# convert dictionary to JSON string
+prediction_json = json.dumps(prediction_dict)
 prediction_close = run_model(model, X_train_close_scaled, X_valid_close_scaled, y_train_close, y_valid_close, X_fcast_close_scaled, 'Close', dataset_close)
 
 # concatenate the two dataframes into a single dataframe
