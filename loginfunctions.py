@@ -1,12 +1,10 @@
-import sys
 import time
 from tkinter import *
-import customtkinter
 import socket
 import threading
 
 
-is_logged_in = False
+is_logged_in = True
 
 
 def send_credentials(username, password):
